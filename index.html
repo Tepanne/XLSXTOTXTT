@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Excel ke TXT Kontak</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body class="bg-gray-100 p-6 font-sans">
+  <div class="max-w-6xl mx-auto bg-white p-6 rounded shadow">
+    <h1 class="text-2xl font-bold mb-4 text-center">Konversi Excel ke Kontak TXT</h1>
+
+    <input type="file" id="excelFile" accept=".xlsx,.xls" class="mb-4 w-full p-2 border rounded"/>
+    <div id="fileInfo" class="mb-4 text-sm text-gray-700 font-medium"></div>
+    <div id="columnsContainer" class="space-y-6"></div>
+    <div id="downloadAll" class="hidden text-center mt-6">
+      <button onclick="downloadAllCombined()" class="bg-green-600 text-white px-6 py-2 rounded">
+        Gabungkan & Download Semua Kontak
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const excelInput = document.getElementById("excelFile");
+    const fileInfo = document.getElementById("fileInfo");
+    const columnsContainer = document.getElementById("columnsContainer");
+    const downloadAllDiv = document.getElementById("downloadAll");
+
+    let allData = {};
+    let fileName = "";
+
+    excelInput.addEventListener("change", function (e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      fileName = file.name.split(".")[0];
+      const reader = new FileReader();
+
+      reader.onload = function (evt) {
+        const data = evt.target.result;
+        const workbook = XLSX.read(data, { type: "binary" });
+
+        allData = {};
+        const colLetters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+        workbook.SheetNames.forEach(sheetName => {
+          const sheet = workbook.Sheets[sheetName];
+          const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+          let columns = {};
+
+          rows.forEach(row => {
+            row.forEach((cell, i) => {
+              const colKey = colLetters[i] || `Col${i}`;
+              if (!columns[colKey]) columns[colKey] = [];
+
+              if (
+                (typeof cell === 'number' && cell.toString().length >= 10) ||
+                (typeof cell === 'string' && /^\d{10,}$/.test(cell.trim()))
+              ) {
+                columns[colKey].push(cell.toString().trim());
+              }
+            });
+          });
+
+          // buang kolom kosong
+          for (let key in columns) {
+            if (columns[key].length === 0) delete columns[key];
+          }
+
+          if (Object.keys(columns).length > 0) {
+            allData[sheetName] = columns;
+          }
+        });
+
+        renderAllSheets();
+      };
+
+      reader.readAsBinaryString(file);
+    });
+
+    function renderAllSheets() {
+      columnsContainer.innerHTML = "";
+      const totalSheets = Object.keys(allData).length;
+      fileInfo.textContent = `Ditemukan ${totalSheets} sheet dengan data nomor.`;
+      if (totalSheets > 0) downloadAllDiv.classList.remove("hidden");
+
+      for (let sheet in allData) {
+        const columns = allData[sheet];
+        const wrapper = document.createElement("div");
+        wrapper.className = "border rounded p-4 bg-gray-50 shadow";
+
+        const header = document.createElement("h2");
+        header.className = "text-xl font-semibold mb-4 text-indigo-700";
+        header.textContent = `Sheet: ${sheet}`;
+        wrapper.appendChild(header);
+
+        const grid = document.createElement("div");
+        grid.className = "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4";
+
+        for (let col in columns) {
+          const values = columns[col];
+          const box = document.createElement("div");
+          box.className = "border rounded p-3 bg-white shadow";
+
+          box.innerHTML = `
+            <h3 class="font-bold mb-2 text-gray-800">Kolom ${col} (${values.length} kontak)</h3>
+            <textarea class="w-full h-40 p-2 border text-sm font-mono mb-2" readonly>${values.join('\n')}</textarea>
+            <button onclick="downloadTxt('${sheet}', '${col}')" class="bg-blue-600 text-white px-4 py-1 rounded">
+              Download Kolom ${col}
+            </button>
+          `;
+          grid.appendChild(box);
+        }
+
+        wrapper.appendChild(grid);
+        columnsContainer.appendChild(wrapper);
+      }
+    }
+
+    function downloadTxt(sheet, col) {
+      const values = allData[sheet][col];
+      const blob = new Blob([values.join('\n')], { type: 'text/plain' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `${fileName}_${sheet}_Kolom${col}.txt`;
+      link.click();
+    }
+
+    function downloadAllCombined() {
+      let combined = [];
+
+      for (let sheet in allData) {
+        for (let col in allData[sheet]) {
+          combined = combined.concat(allData[sheet][col]);
+        }
+      }
+
+      const blob = new Blob([combined.join('\n')], { type: 'text/plain' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `${fileName}_SemuaSheet_SemuaKolom.txt`;
+      link.click();
+    }
+  </script>
+</body>
+</html>
